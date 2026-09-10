@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDF Text Tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<style>
+  :root{
+    --ink:#1c1f26;
+    --ink-soft:#2a2f3a;
+    --paper:#faf7f0;
+    --paper-line:#e4ddc9;
+    --amber:#e8a33d;
+    --amber-soft:#f3c880;
+    --ok:#5fa88a;
+    --text-dim:#9aa1ad;
+    --danger:#c96a5a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:var(--ink);
+    color:var(--paper);
+    font-family:'Inter',sans-serif;
+    display:flex;
+    flex-direction:column;
+    height:100vh;
+    overflow:hidden;
+  }
+
+  /* ---------- Top bar ---------- */
+  header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 22px;
+    background:var(--ink-soft);
+    border-bottom:1px solid #3a4150;
+    flex-shrink:0;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  .brand{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  .brand h1{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:18px;
+    font-weight:700;
+    letter-spacing:0.2px;
+    margin:0;
+  }
+  .brand .mark{
+    color:var(--amber);
+  }
+  .brand .tag{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--text-dim);
+    letter-spacing:0.5px;
+  }
+  .top-actions{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  button{
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:13px;
+    border:none;
+    border-radius:6px;
+    padding:9px 16px;
+    cursor:pointer;
+    transition:filter .15s ease, transform .1s ease;
+  }
+  button:active{transform:translateY(1px);}
+  button:disabled{opacity:0.35;cursor:not-allowed;}
+  .btn-primary{background:var(--amber);color:#1c1200;}
+  .btn-primary:hover:not(:disabled){filter:brightness(1.08);}
+  .btn-ghost{background:transparent;color:var(--paper);border:1px solid #4a5261;}
+  .btn-ghost:hover:not(:disabled){border-color:var(--amber);color:var(--amber);}
+  .btn-danger{background:transparent;color:var(--danger);border:1px solid var(--danger);}
+  .btn-danger:hover:not(:disabled){background:var(--danger);color:#1c1200;}
+  input[type=file]{display:none;}
+
+  /* ---------- Layout ---------- */
+  .workspace{
+    flex:1;
+    display:flex;
+    overflow:hidden;
+  }
+  aside{
+    width:260px;
+    background:var(--ink-soft);
+    border-right:1px solid #3a4150;
+    padding:20px 18px;
+    overflow-y:auto;
+    flex-shrink:0;
+  }
+  aside h2{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:1.2px;
+    color:var(--text-dim);
+    margin:0 0 14px;
+  }
+  .field{margin-bottom:18px;}
+  .field label{
+    display:block;
+    font-size:12px;
+    color:var(--text-dim);
+    margin-bottom:6px;
+  }
+  .field input[type=text],
+  .field input[type=number],
+  .field select,
+  .field textarea{
+    width:100%;
+    background:var(--ink);
+    border:1px solid #4a5261;
+    color:var(--paper);
+    border-radius:5px;
+    padding:8px 10px;
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+  }
+  .field textarea{resize:vertical;min-height:60px;font-family:inherit;}
+  .field input[type=color]{
+    width:100%;
+    height:34px;
+    background:var(--ink);
+    border:1px solid #4a5261;
+    border-radius:5px;
+    padding:2px;
+    cursor:pointer;
+  }
+  .row-2{display:flex;gap:10px;}
+  .row-2 > div{flex:1;}
+
+  .hint{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    line-height:1.6;
+    color:var(--text-dim);
+    border-top:1px solid #3a4150;
+    padding-top:14px;
+    margin-top:6px;
+  }
+  .hint .amber{color:var(--amber-soft);}
+
+  /* ---------- Canvas viewer ---------- */
+  main{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    background:
+      radial-gradient(circle at 1px 1px, #2a2f3a 1px, transparent 0) 0 0/22px 22px,
+      var(--ink);
+  }
+  .toolbar{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:18px;
+    padding:10px 16px;
+    background:var(--ink-soft);
+    border-bottom:1px solid #3a4150;
+    flex-shrink:0;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    color:var(--text-dim);
+  }
+  .toolbar button{padding:6px 12px;font-size:12px;}
+  .toolbar .coords{
+    color:var(--amber-soft);
+    min-width:150px;
+    text-align:center;
+  }
+  .canvas-scroll{
+    flex:1;
+    overflow:auto;
+    display:flex;
+    justify-content:center;
+    padding:36px 20px;
+  }
+  .page-stage{
+    position:relative;
+    box-shadow:0 12px 40px rgba(0,0,0,0.5);
+    background:var(--paper);
+    cursor:crosshair;
+    height:fit-content;
+  }
+  .page-stage canvas{display:block;}
+  .text-mark{
+    position:absolute;
+    white-space:pre;
+    user-select:none;
+    cursor:grab;
+    transform:translate(0,-100%);
+    padding:1px 2px;
+    line-height:1.05;
+  }
+  .text-mark:hover{outline:1px dashed var(--amber);}
+  .text-mark.selected{outline:1.5px solid var(--amber);background:rgba(232,163,61,0.12);}
+  .text-mark .del{
+    position:absolute;
+    top:-20px;
+    right:-8px;
+    background:var(--danger);
+    color:#fff;
+    border-radius:50%;
+    width:16px;height:16px;
+    font-size:11px;
+    line-height:16px;
+    text-align:center;
+    cursor:pointer;
+    display:none;
+    font-family:'Inter',sans-serif;
+  }
+  .text-mark.selected .del{display:block;}
+
+  .empty-state{
+    margin:auto;
+    text-align:center;
+    color:var(--text-dim);
+    max-width:340px;
+  }
+  .empty-state .icon{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:44px;
+    color:var(--amber);
+    margin-bottom:10px;
+  }
+  .empty-state h2{
+    font-family:'Space Grotesk',sans-serif;
+    color:var(--paper);
+    font-size:18px;
+    margin:0 0 8px;
+  }
+  .empty-state p{font-size:13px;line-height:1.6;margin:0 0 18px;}
+
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-track{background:var(--ink);}
+  ::-webkit-scrollbar-thumb{background:#4a5261;border-radius:5px;}
+
+  @media (max-width:720px){
+    aside{position:absolute;z-index:5;height:100%;box-shadow:8px 0 24px rgba(0,0,0,.4);}
+    aside.hidden{display:none;}
+  }
+
+  .status-pill{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    padding:4px 10px;
+    border-radius:20px;
+    background:rgba(95,168,138,0.15);
+    color:var(--ok);
+    border:1px solid rgba(95,168,138,0.4);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1><span class="mark">＋</span>Text on PDF</h1>
+    <span class="tag" id="fileTag">NO FILE LOADED</span>
+  </div>
+  <div class="top-actions">
+    <label class="btn-ghost" for="fileInput" style="display:inline-block;">Upload PDF</label>
+    <input type="file" id="fileInput" accept="application/pdf">
+    <button class="btn-danger" id="resetBtn" disabled>Clear</button>
+    <button class="btn-primary" id="downloadBtn" disabled>Download PDF</button>
+  </div>
+</header>
+
+<div class="workspace">
+  <aside id="sidebar">
+    <h2>Part Serial Entry</h2>
+    <div class="field">
+      <label for="partType">Part</label>
+      <select id="partType">
+        <option value="FUSER">Fuser Unit</option>
+        <option value="DRUM">Drum Unit</option>
+        <option value="DEVELOPER">Developer Unit</option>
+        <option value="TRANSFER BELT">Transfer Belt</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="oldSerial">Old Serial Number</label>
+      <input type="text" id="oldSerial" placeholder="e.g. A1B2C3D4">
+    </div>
+    <div class="field">
+      <label for="newSerial">New Serial Number</label>
+      <input type="text" id="newSerial" placeholder="e.g. E5F6G7H8">
+    </div>
+    <div class="field">
+      <label for="labelStyle">Label Format</label>
+      <select id="labelStyle">
+        <option value="stacked">Stacked (Part / Old / New)</option>
+        <option value="inline">Single line</option>
+        <option value="serials-only">Old &amp; New only (no part name)</option>
+      </select>
+    </div>
+    <div class="row-2">
+      <div class="field">
+        <label for="fontSize">Size (pt)</label>
+        <input type="number" id="fontSize" value="10" min="4" max="72">
+      </div>
+      <div class="field">
+        <label for="textColor">Color</label>
+        <input type="color" id="textColor" value="#1c1f26">
+      </div>
+    </div>
+    <div class="field">
+      <label for="fontFamily">Font</label>
+      <select id="fontFamily">
+        <option value="Helvetica">Helvetica</option>
+        <option value="Courier">Courier</option>
+        <option value="Helvetica-Bold">Helvetica Bold</option>
+        <option value="TimesRoman">Times Roman</option>
+        <option value="TimesRomanBold">Times Bold</option>
+      </select>
+    </div>
+    <div class="hint">
+      <span class="amber">HOW TO USE</span><br>
+      1. Upload the maintenance report / return request PDF<br>
+      2. Pick the part, enter old + new serials<br>
+      3. Click on the page where the entry belongs<br>
+      4. Drag a placed label to reposition, tap the ● to delete<br>
+      5. Repeat for each part, then download
+    </div>
+  </aside>
+
+  <main>
+    <div class="toolbar" id="toolbar" style="display:none;">
+      <button class="btn-ghost" id="prevPage">◀ Prev</button>
+      <span id="pageIndicator">Page 1 / 1</span>
+      <button class="btn-ghost" id="nextPage">Next ▶</button>
+      <span style="width:1px;height:16px;background:#4a5261;"></span>
+      <button class="btn-ghost" id="zoomOut">－</button>
+      <span id="zoomLevel">100%</span>
+      <button class="btn-ghost" id="zoomIn">＋</button>
+      <span style="width:1px;height:16px;background:#4a5261;"></span>
+      <span class="coords" id="coordsReadout">x: — , y: —</span>
+      <span class="status-pill" id="markCount">0 labels placed</span>
+    </div>
+    <div class="canvas-scroll" id="canvasScroll">
+      <div class="empty-state" id="emptyState">
+        <div class="icon">⧉</div>
+        <h2>No PDF loaded</h2>
+        <p>Upload a PDF to start adding text — great for filling in service reports, sign-off sheets, or annotating a scanned form.</p>
+        <label class="btn-primary" for="fileInput" style="display:inline-block;">Upload PDF</label>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const { PDFDocument, rgb, StandardFonts } = PDFLib;
+
+let pdfBytesOriginal = null;   // raw uploaded bytes
+let pdfjsDoc = null;           // pdf.js document (for rendering)
+let currentPage = 1;
+let totalPages = 1;
+let scale = 1.5;
+let baseViewportBySize = {};   // per-page unscaled width/height (pdf points)
+
+// marks[pageNumber] = [{id, xPts, yPts, text, size, color, font}]
+let marks = {};
+let markIdSeq = 1;
+let selectedMarkId = null;
+
+const fileInput = document.getElementById('fileInput');
+const fileTag = document.getElementById('fileTag');
+const resetBtn = document.getElementById('resetBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const canvasScroll = document.getElementById('canvasScroll');
+const emptyState = document.getElementById('emptyState');
+const toolbar = document.getElementById('toolbar');
+const pageIndicator = document.getElementById('pageIndicator');
+const zoomLevel = document.getElementById('zoomLevel');
+const coordsReadout = document.getElementById('coordsReadout');
+const markCount = document.getElementById('markCount');
+const partTypeInput = document.getElementById('partType');
+const oldSerialInput = document.getElementById('oldSerial');
+const newSerialInput = document.getElementById('newSerial');
+const labelStyleInput = document.getElementById('labelStyle');
+const fontSizeInput = document.getElementById('fontSize');
+const textColorInput = document.getElementById('textColor');
+const fontFamilyInput = document.getElementById('fontFamily');
+
+fileInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const buf = await file.arrayBuffer();
+  pdfBytesOriginal = new Uint8Array(buf);
+  await loadPdf(pdfBytesOriginal.slice());
+  fileTag.textContent = file.name.toUpperCase();
+  resetBtn.disabled = false;
+  downloadBtn.disabled = false;
+  emptyState.style.display = 'none';
+  toolbar.style.display = 'flex';
+});
+
+async function loadPdf(bytes){
+  pdfjsDoc = await pdfjsLib.getDocument({ data: bytes }).promise;
+  totalPages = pdfjsDoc.numPages;
+  currentPage = 1;
+  marks = {};
+  for (let i=1;i<=totalPages;i++) marks[i] = [];
+  await renderPage(currentPage);
+}
+
+async function renderPage(pageNum){
+  const page = await pdfjsDoc.getPage(pageNum);
+  const viewport = page.getViewport({ scale });
+  baseViewportBySize[pageNum] = page.getViewport({ scale: 1 });
+
+  canvasScroll.innerHTML = '';
+  const stage = document.createElement('div');
+  stage.className = 'page-stage';
+  stage.style.width = viewport.width + 'px';
+  stage.style.height = viewport.height + 'px';
+
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const ctx = canvas.getContext('2d');
+  await page.render({ canvasContext: ctx, viewport }).promise;
+  stage.appendChild(canvas);
+
+  stage.addEventListener('click', (ev) => {
+    if (ev.target !== stage && ev.target !== canvas) return; // ignore clicks on marks
+    const rect = stage.getBoundingClientRect();
+    const xPx = ev.clientX - rect.left;
+    const yPx = ev.clientY - rect.top;
+    placeMarkAtPixel(xPx, yPx, stage);
+  });
+
+  stage.addEventListener('mousemove', (ev) => {
+    const rect = stage.getBoundingClientRect();
+    const xPx = ev.clientX - rect.left;
+    const yPx = ev.clientY - rect.top;
+    const base = baseViewportBySize[currentPage];
+    const xPts = Math.round(xPx / scale);
+    const yPts = Math.round(base.height - (yPx / scale));
+    coordsReadout.textContent = `x: ${xPts}, y: ${yPts}`;
+  });
+
+  canvasScroll.appendChild(stage);
+  renderMarksForPage(pageNum, stage);
+  pageIndicator.textContent = `Page ${pageNum} / ${totalPages}`;
+  zoomLevel.textContent = Math.round(scale/1.5*100) + '%';
+  updateMarkCount();
+}
+
+function buildLabelText(){
+  const part = partTypeInput.value;
+  const oldS = oldSerialInput.value.trim();
+  const newS = newSerialInput.value.trim();
+  const style = labelStyleInput.value;
+
+  if (style === 'inline'){
+    return `${part}  OLD: ${oldS}  NEW: ${newS}`;
+  }
+  if (style === 'serials-only'){
+    return `OLD: ${oldS}\nNEW: ${newS}`;
+  }
+  return `${part}\nOld: ${oldS}\nNew: ${newS}`;
+}
+
+function placeMarkAtPixel(xPx, yPx, stage){
+  const oldS = oldSerialInput.value.trim();
+  const newS = newSerialInput.value.trim();
+  if (!oldS || !newS){
+    const target = !oldS ? oldSerialInput : newSerialInput;
+    target.focus();
+    target.style.outline = '2px solid var(--danger)';
+    setTimeout(()=> target.style.outline = '', 700);
+    return;
+  }
+  const text = buildLabelText();
+  const base = baseViewportBySize[currentPage];
+  const size = parseFloat(fontSizeInput.value) || 14;
+  const xPts = xPx / scale;
+  const yPts = base.height - (yPx / scale);
+
+  const mark = {
+    id: markIdSeq++,
+    xPts, yPts,
+    text,
+    size,
+    color: textColorInput.value,
+    font: fontFamilyInput.value
+  };
+  marks[currentPage].push(mark);
+  renderMarksForPage(currentPage, stage);
+  updateMarkCount();
+}
+
+function renderMarksForPage(pageNum, stage){
+  stage.querySelectorAll('.text-mark').forEach(el => el.remove());
+  const base = baseViewportBySize[pageNum];
+  marks[pageNum].forEach(m => {
+    const el = document.createElement('div');
+    el.className = 'text-mark' + (m.id === selectedMarkId ? ' selected' : '');
+    el.style.left = (m.xPts * scale) + 'px';
+    el.style.top = (base.height - m.yPts) * scale + 'px';
+    el.style.fontSize = (m.size * scale) + 'px';
+    el.style.color = m.color;
+    el.style.fontFamily = m.font.includes('Times') ? 'Georgia, serif' : m.font.includes('Courier') ? "'IBM Plex Mono', monospace" : "'Inter', sans-serif";
+    el.style.fontWeight = m.font.includes('Bold') ? '700' : '400';
+    el.textContent = m.text;
+    el.dataset.id = m.id;
+
+    const del = document.createElement('div');
+    del.className = 'del';
+    del.textContent = '×';
+    del.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      marks[pageNum] = marks[pageNum].filter(x => x.id !== m.id);
+      renderMarksForPage(pageNum, stage);
+      updateMarkCount();
+    });
+    el.appendChild(del);
+
+    el.addEventListener('mousedown', (ev) => {
+      ev.stopPropagation();
+      selectedMarkId = m.id;
+      renderMarksForPage(pageNum, stage);
+      const stageRect = stage.getBoundingClientRect();
+      const startX = ev.clientX, startY = ev.clientY;
+      const origXPts = m.xPts, origYPts = m.yPts;
+
+      function onMove(mv){
+        const dxPx = mv.clientX - startX;
+        const dyPx = mv.clientY - startY;
+        m.xPts = origXPts + dxPx/scale;
+        m.yPts = origYPts - dyPx/scale;
+        renderMarksForPage(pageNum, stage);
+      }
+      function onUp(){
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    stage.appendChild(el);
+  });
+}
+
+function updateMarkCount(){
+  const total = Object.values(marks).reduce((s,arr)=>s+arr.length,0);
+  markCount.textContent = `${total} label${total===1?'':'s'} placed`;
+}
+
+document.getElementById('prevPage').addEventListener('click', () => {
+  if (currentPage > 1){ currentPage--; selectedMarkId=null; renderPage(currentPage); }
+});
+document.getElementById('nextPage').addEventListener('click', () => {
+  if (currentPage < totalPages){ currentPage++; selectedMarkId=null; renderPage(currentPage); }
+});
+document.getElementById('zoomIn').addEventListener('click', () => {
+  scale = Math.min(scale + 0.25, 4);
+  renderPage(currentPage);
+});
+document.getElementById('zoomOut').addEventListener('click', () => {
+  scale = Math.max(scale - 0.25, 0.5);
+  renderPage(currentPage);
+});
+
+resetBtn.addEventListener('click', () => {
+  pdfBytesOriginal = null;
+  pdfjsDoc = null;
+  marks = {};
+  fileTag.textContent = 'NO FILE LOADED';
+  resetBtn.disabled = true;
+  downloadBtn.disabled = true;
+  toolbar.style.display = 'none';
+  canvasScroll.innerHTML = '';
+  canvasScroll.appendChild(emptyState);
+  emptyState.style.display = 'flex';
+  fileInput.value = '';
+});
+
+downloadBtn.addEventListener('click', async () => {
+  if (!pdfBytesOriginal) return;
+  downloadBtn.disabled = true;
+  downloadBtn.textContent = 'Building…';
+  try{
+    const pdfDoc = await PDFDocument.load(pdfBytesOriginal);
+    const pages = pdfDoc.getPages();
+
+    const fontCache = {};
+    async function getFont(name){
+      if (fontCache[name]) return fontCache[name];
+      const map = {
+        'Helvetica': StandardFonts.Helvetica,
+        'Helvetica-Bold': StandardFonts.HelveticaBold,
+        'TimesRoman': StandardFonts.TimesRoman,
+        'TimesRomanBold': StandardFonts.TimesRomanBold,
+        'Courier': StandardFonts.Courier
+      };
+      const f = await pdfDoc.embedFont(map[name] || StandardFonts.Helvetica);
+      fontCache[name] = f;
+      return f;
+    }
+
+    for (let pageNum = 1; pageNum <= totalPages; pageNum++){
+      const pageMarks = marks[pageNum] || [];
+      if (!pageMarks.length) continue;
+      const page = pages[pageNum - 1];
+      for (const m of pageMarks){
+        const font = await getFont(m.font);
+        const hex = m.color.replace('#','');
+        const r = parseInt(hex.substring(0,2),16)/255;
+        const g = parseInt(hex.substring(2,4),16)/255;
+        const b = parseInt(hex.substring(4,6),16)/255;
+        const lines = m.text.split('\n');
+        lines.forEach((line, idx) => {
+          page.drawText(line, {
+            x: m.xPts,
+            y: m.yPts - (idx * m.size * 1.15),
+            size: m.size,
+            font,
+            color: rgb(r,g,b)
+          });
+        });
+      }
+    }
+
+    const outBytes = await pdfDoc.save();
+    const blob = new Blob([outBytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (fileTag.textContent.replace(/\.PDF$/i,'').toLowerCase() || 'edited') + '-edited.pdf';
+    a.click();
+    URL.revokeObjectURL(url);
+  }catch(err){
+    alert('Something went wrong building the PDF: ' + err.message);
+    console.error(err);
+  }finally{
+    downloadBtn.disabled = false;
+    downloadBtn.textContent = 'Download PDF';
+  }
+});
+</script>
+</body>
+</html>
